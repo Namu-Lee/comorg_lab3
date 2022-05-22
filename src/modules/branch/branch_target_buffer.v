@@ -25,4 +25,6 @@ module branch_target_buffer #(
 
 // TODO: Implement BTB
 
+//always @(*) begin
+
 endmodule

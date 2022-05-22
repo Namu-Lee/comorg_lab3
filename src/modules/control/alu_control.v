@@ -38,31 +38,26 @@ module alu_control(
 wire [3:0] funct;
 assign funct = {funct7[5], funct3};
 
-// combinational logic
 always @(*) begin
   case (alu_op)
+    // Select operations for load & store
     2'b00: begin
-    ///////////////////////////////////////////////////////////////////////
-    // TODO : select operation for loads/stores
-    ///////////////////////////////////////////////////////////////////////
-		alu_func = `OP_ADD;
-	//TODO END
+	  alu_func = `OP_ADD;
     end
+    // Select operations for branch
     2'b01: begin
-    ///////////////////////////////////////////////////////////////////////
-    // TODO : select operation for branches
-    ///////////////////////////////////////////////////////////////////////
-		case (funct3)
-			3'b000: alu_func = `OP_SUB; //beq
-			3'b001: alu_func = `OP_ADD; //bne
-			3'b100: alu_func = `OP_SLT; //blt
-			3'b101: alu_func = `OP_BGE; //bge
-			3'b110: alu_func = `OP_SLTU; //bltu
-			3'b111: alu_func = `OP_BGEU; //bgeu
-		endcase
-	// TODO END
+      case (funct3)
+	    3'b000: alu_func = `OP_SUB; //beq
+	    3'b001: alu_func = `OP_ADD; //bne
+	    3'b100: alu_func = `OP_SLT; //blt
+	    3'b101: alu_func = `OP_BGE; //bge
+	    3'b110: alu_func = `OP_SLTU; //bltu
+	    3'b111: alu_func = `OP_BGEU; //bgeu
+		default: alu_func = `OP_EEE;
+      endcase
     end
-    2'b10: begin                // R-types
+    // select operation for R-types
+    2'b10: begin
       case (funct)
         4'b0_000: alu_func = `OP_ADD;
         4'b1_000: alu_func = `OP_SUB;
@@ -74,14 +69,12 @@ always @(*) begin
         4'b1_101: alu_func = `OP_SRA;
         4'b0_010: alu_func = `OP_SLT;
         4'b0_011: alu_func = `OP_SLTU;
-        default:  alu_func = `OP_EEE;  // shoud not fall here 
+        default:  alu_func = `OP_EEE;
       endcase
     end
+	// Select operations for I-types
     2'b11: begin
-      ///////////////////////////////////////////////////////////////////////
-      // TODO : select operation for I-types with immediate
-      ///////////////////////////////////////////////////////////////////////
-	casex (funct)
+	  casex (funct)
 		4'bx_000: alu_func = `OP_ADD;
 		4'bx_100: alu_func = `OP_XOR;
 		4'bx_110: alu_func = `OP_OR;
@@ -92,9 +85,9 @@ always @(*) begin
 		4'bx_010: alu_func = `OP_SLT;
 		4'bx_011: alu_func = `OP_SLTU;
 		default: alu_func = `OP_EEE;
-	endcase
+	  endcase
     end
-    default: alu_func = `OP_EEE;       // should not fall here
+    default: alu_func = `OP_EEE;
   endcase
 end
 

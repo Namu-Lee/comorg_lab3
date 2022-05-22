@@ -28,6 +28,9 @@ always @(*) begin
 	7'b110_1111: sextimm = {{11{instruction[31]}}, instruction[31], instruction[19:12], instruction[20], instruction[30:21], 1'b0};
 	// Jump and Link Reg (I-type)
 	7'b110_0111: sextimm = {{20{instruction[31]}}, instruction[31:20]};
+	// U-type
+	7'b011_0111: sextimm = instruction[31:12] << 12; //lui
+	7'b001_0111: sextimm = instruction[31:12] << 12;//auipc
 	
 	// TODO END
 	

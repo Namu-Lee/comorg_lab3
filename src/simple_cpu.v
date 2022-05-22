@@ -16,13 +16,18 @@ module simple_cpu
   input rstn
 );
 
-///////////////////////////////////////////////////////////////////////////////
-// TODO:  Declare all wires / registers that are needed
-///////////////////////////////////////////////////////////////////////////////
-// e.g., wire [DATA_WIDTH-1:0] if_pc_plus_4;
-// 1) Pipeline registers (wires to / from pipeline register modules)
-// 2) In / Out ports for other modules
-// 3) Additional wires for multiplexers or other mdoules you instantiate
+//////////////////////////////////////////////////////////////////////////////////
+// Hardware Counters
+//////////////////////////////////////////////////////////////////////////////////
+
+wire [31:0] CORE_CYCLE;
+hardware_counter m_core_cycle(
+  .clk(clk),
+  .rstn(rstn),
+  .cond(1'b1),
+
+  .counter(CORE_CYCLE)
+);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Instruction Fetch (IF)
@@ -67,7 +72,6 @@ wire flush;
 
 /* forward to IF/ID stage registers */
 ifid_reg m_ifid_reg(
-  // TODO: Add flush or stall signal if it is needed
   .clk            (clk),
   .if_PC          (PC),
   .if_pc_plus_4   (IF_pc_plus_4),
@@ -91,7 +95,6 @@ wire [6:0] EX_opcode;
 
 /* m_hazard: hazard detection unit */
 hazard m_hazard(
-  // TODO: implement hazard detection unit & do wiring
   .taken (MEM_taken),
   .ID_rs1 (ID_inst[19:15]),
   .ID_rs2 (ID_inst[24:20]),
@@ -107,7 +110,7 @@ hazard m_hazard(
 wire ID_branch_tmp, ID_alu_src_tmp, ID_mem_read_tmp, ID_mem_to_reg_tmp, ID_mem_write_tmp, ID_reg_write_tmp;
 wire [1:0] ID_jump_tmp, ID_alu_op_tmp;
 wire ID_branch, ID_alu_src, ID_mem_read, ID_mem_to_reg, ID_mem_write, ID_reg_write;
-wire [1:0] ID_jump, ID_alu_op;
+wire [1:0] ID_jump, ID_alu_op, ID_u_type;
 
 /* m_control: control unit */
 control m_control(
@@ -120,7 +123,8 @@ control m_control(
   .mem_read   (ID_mem_read),
   .mem_to_reg (ID_mem_to_reg),
   .mem_write  (ID_mem_write),
-  .reg_write  (ID_reg_write)
+  .reg_write  (ID_reg_write),
+  .u_type	  (ID_u_type)
 );
 
 wire [DATA_WIDTH-1:0] ID_imm;
@@ -151,14 +155,13 @@ register_file m_register_file(
 
 wire [DATA_WIDTH-1:0] EX_PC, EX_pc_plus_4, EX_imm, EX_readdata1, EX_readdata2;
 wire EX_branch, EX_alu_src, EX_mem_read, EX_mem_write, EX_mem_to_reg;
-wire [1:0] EX_jump, EX_alu_op;
+wire [1:0] EX_jump, EX_alu_op, EX_u_type;
 wire [6:0] EX_funct7;
 wire [2:0] EX_funct3;
 wire [4:0] EX_rs1, EX_rs2;
 
 /* forward to ID/EX stage registers */
 idex_reg m_idex_reg(
-  // TODO: Add flush or stall signal if it is needed
   .clk          (clk),
   .id_PC        (ID_PC),
   .id_pc_plus_4 (ID_pc_plus_4),
@@ -170,6 +173,7 @@ idex_reg m_idex_reg(
   .id_memwrite  (ID_mem_write),
   .id_memtoreg  (ID_mem_to_reg),
   .id_regwrite  (ID_reg_write),
+  .id_u_type	(ID_u_type),
   .id_sextimm   (ID_imm),
   .id_funct7    (ID_inst[31:25]),
   .id_funct3    (ID_inst[14:12]),
@@ -192,6 +196,7 @@ idex_reg m_idex_reg(
   .ex_memwrite  (EX_mem_write),
   .ex_memtoreg  (EX_mem_to_reg),
   .ex_regwrite  (EX_reg_write),
+  .ex_u_type	(EX_u_type),
   .ex_sextimm   (EX_imm),
   .ex_funct7    (EX_funct7),
   .ex_funct3    (EX_funct3),
@@ -211,7 +216,7 @@ wire [DATA_WIDTH-1:0] EX_target_base;
 
 /* input selector for 'm_branch_target_adder': PC=imm+PC for direct(=branch, jal), PC=imm+rs1 (LSB=0) for indirect(=jalr) */
 mux_2x1 mux_target_base_selector(
-  .select(EX_jump[0]), //jump = 00 for conditional, 10 for jal, 11 for jalr
+  .select(EX_jump[0]), //jump = 00 for conditional or non-branch, 10 for jal, 11 for jalr
   .in1(EX_PC),
   .in2({EX_readdata1[31:1], 1'b0}),
 
@@ -252,12 +257,12 @@ alu_control m_alu_control(
 wire [DATA_WIDTH-1:0] EX_alu_in_a, EX_alu_in_b_stage1, EX_alu_in_b, EX_alu_result, MEM_alu_result;
 wire [1:0] EX_fwd_a, EX_fwd_b; //2-bit forwarding signal : 00 not forwarding, 01 from MEM, 10 from WB
 
-/* alu input_1 selection */
-mux_3x1 mux_alu_in_1(
+/* alu input_1 selection (fwd or RF) */
+mux_3x1 mux_alu_in_1_stage1(
   .select(EX_fwd_a),
-  .in1(EX_readdata1), //00
-  .in2(MEM_alu_result), //01
-  .in3(WB_writedata), //10
+  .in1(EX_readdata1), //00, RF
+  .in2(MEM_alu_result), //01, fwd from MEM
+  .in3(WB_writedata), //10, fwd from WB
 
   .out(EX_alu_in_a)
 );
@@ -265,29 +270,41 @@ mux_3x1 mux_alu_in_1(
 /* alu input_2 selection */
 mux_4x1 mux_alu_in_2(
   .select({2{EX_alu_src}} | EX_fwd_b),
-  .in1(EX_readdata2),
-  .in2(MEM_alu_result),
-  .in3(WB_writedata),
-  .in4(EX_imm),
+  .in1(EX_readdata2), // RF
+  .in2(MEM_alu_result), // fwd from MEM
+  .in3(WB_writedata), // fwd from WB
+  .in4(EX_imm), // immediate
 
   .out(EX_alu_in_b)
 );
 
 /* m_alu */
+wire [DATA_WIDTH-1:0] EX_alu_result_from_alu;
+
 alu m_alu(
   .alu_func (EX_alu_func),
   .in_a     (EX_alu_in_a), 
   .in_b     (EX_alu_in_b), 
 
-  .result   (EX_alu_result),
+  .result   (EX_alu_result_from_alu),
   .check    (EX_check)
+);
+
+/* datapath for U-type: U_type: 00(not U), 10(lui), 11(auipc) */
+mux_4x1 mux_utype_datapath (
+  .select(EX_u_type),
+  .in1(EX_alu_result_from_alu), // 00
+  .in2(32'bx), // 01, should not fall here
+  .in3(EX_imm), // 10
+  .in4(EX_target), // 11
+
+  .out(EX_alu_result)
 );
 
 wire [4:0] MEM_rd;
 wire MEM_reg_write;
 
 forwarding m_forwarding(
-  // TODO: implement forwarding unit & do wiring
   .EX_rs1(EX_rs1),
   .EX_rs2(EX_rs2),
   .MEM_rd(MEM_rd),
@@ -317,7 +334,6 @@ mux_3x1 mem_writedata_select (
 
 /* forward to EX/MEM stage registers */
 exmem_reg m_exmem_reg(
-  // TODO: Add flush or stall signal if it is needed
   .clk            (clk),
   .ex_pc_plus_4   (EX_pc_plus_4),
   .ex_pc_target   (EX_target),
@@ -385,7 +401,6 @@ wire WB_mem_to_reg;
 
 /* forward to MEM/WB stage registers */
 memwb_reg m_memwb_reg(
-  // TODO: Add flush or stall signal if it is needed
   .clk            (clk),
   .mem_pc_plus_4  (MEM_pc_plus_4),
   .mem_jump       (MEM_jump),
@@ -408,6 +423,7 @@ memwb_reg m_memwb_reg(
 // Write Back (WB) 
 //////////////////////////////////////////////////////////////////////////////////
 
+//Writeback data selection: alu result(00), memory read(01), pc+4(10_JAL or JALR)
 mux_3x1 mux_WriteBack(
   .select({WB_jump[1],WB_mem_to_reg}),
   .in1(WB_alu_result),

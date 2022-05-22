@@ -8,7 +8,9 @@
 module gshare #(
   parameter DATA_WIDTH = 32,
   parameter COUNTER_WIDTH = 2,
-  parameter NUM_ENTRIES = 256
+  parameter NUM_ENTRIES = 256,
+	parameter BHR_WIDTH = 8,
+	parameter TAG_WIDTH = 22
 ) (
   input clk,
   input rstn,
@@ -23,7 +25,10 @@ module gshare #(
 
   output reg pred
 );
+/*
+reg [:0] tag_table;
+reg [BHR_WIDTH-1:0]	
+*/
 
-// TODO: Implement gshare branch predictor
 
 endmodule
