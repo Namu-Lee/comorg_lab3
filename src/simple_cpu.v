@@ -370,7 +370,7 @@ exmem_reg m_exmem_reg(
 
 /* PC source selector : NEXT_PC=target if taken, pc+4 if not taken, pc if stall*/
 mux_4x1 mux_PC_source(
-  .select({(~flush & stall),MEM_taken}), //flush has priority
+  .select({stall, MEM_taken}), //flush has priority
   .in1(IF_pc_plus_4),
   .in2(MEM_target),
   .in3(PC),
