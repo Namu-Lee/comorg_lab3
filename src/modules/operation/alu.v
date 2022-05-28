@@ -17,43 +17,36 @@ module alu
   output reg check 
 );
 
-// combinational logic 
+// arithmetic operation
 always @(*) begin
   case (alu_func)
-    `OP_ADD:  result = in_a +  in_b; 
-    `OP_SUB:  result = in_a -  in_b;
-    `OP_XOR:  result = in_a ^  in_b;
-    `OP_OR:   result = in_a |  in_b;
-    `OP_AND:  result = in_a &  in_b;
-    /////////////////////////////////////////////////////////////////////////
-    // TODO : Add other operations
-    // - The example below is given as a hint
-    // - `OP_SRA: result = $signed(in_a) >>> in_b[4:0];
-    /////////////////////////////////////////////////////////////////////////
-	`OP_SLL: result = in_a << in_b[4:0];
-    `OP_SRL: result = in_a >> in_b[4:0];
-    `OP_SRA: result = $signed(in_a) >>> in_b[4:0];
-    `OP_SLT: result = ($signed(in_a) < $signed(in_b)) ? 1:0;
+    `OP_ADD: 	result = in_a +  in_b; 
+    `OP_SUB: 	result = in_a -  in_b;
+    `OP_XOR: 	result = in_a ^  in_b;
+    `OP_OR:	 	result = in_a |  in_b;
+    `OP_AND: 	result = in_a &  in_b;
+		`OP_SLL: 	result = in_a << in_b[4:0];
+    `OP_SRL: 	result = in_a >> in_b[4:0];
+    `OP_SRA: 	result = $signed(in_a) >>> in_b[4:0];
+    `OP_SLT: 	result = ($signed(in_a) < $signed(in_b)) ? 1:0;
     `OP_SLTU: result = (in_a < in_b) ? 1:0;
-	// TODO END
-    default:  result = 32'h0000_0000;
+    default:  result = 0;
   endcase
 end
 
-// combinational logic
+/* check signal generator */
 always @(*) begin
   case (alu_func)
     //////////////////////////////////////////////////////////////////////////
-    // TODO : Generate check signal
+    // Generate check signal
     //////////////////////////////////////////////////////////////////////////
-	`OP_ADD: check = (in_a == in_b) ? 0:1;
-    `OP_SUB: check = (in_a == in_b) ? 1:0;
-	`OP_SLT: check = ($signed(in_a) < $signed(in_b)) ? 1:0;
-	`OP_BGE: check = ($signed(in_a) >= $signed(in_b)) ? 1:0;
-	`OP_SLTU: check = (in_a < in_b) ? 1:0;
-	`OP_BGEU: check = (in_a >= in_b) ? 1:0;
-	// TODO END
-	default:  check = 1'b1;
+		`OP_ADD: 	check = (in_a == in_b) ? 0:1;
+    `OP_SUB: 	check = (in_a == in_b) ? 1:0;
+		`OP_SLT: 	check = ($signed(in_a) < $signed(in_b)) ? 1:0;
+		`OP_BGE: 	check = ($signed(in_a) >= $signed(in_b)) ? 1:0;
+		`OP_SLTU: check = (in_a < in_b) ? 1:0;
+		`OP_BGEU: check = (in_a >= in_b) ? 1:0;
+		default:  check = 1;
   endcase
 end
 endmodule

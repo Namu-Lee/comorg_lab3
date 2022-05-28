@@ -35,29 +35,23 @@ module alu_control(
   output reg [3:0] alu_func
 );
 
-wire [3:0] funct;
-assign funct = {funct7[5], funct3};
+wire [3:0] funct = {funct7[5], funct3};
 
 always @(*) begin
   case (alu_op)
-    // Select operations for load & store
-    2'b00: begin
-	  alu_func = `OP_ADD;
-    end
-    // Select operations for branch
-    2'b01: begin
+    2'b00: alu_func = `OP_ADD; // load & store
+    2'b01: begin // branch
       case (funct3)
-	    3'b000: alu_func = `OP_SUB; //beq
-	    3'b001: alu_func = `OP_ADD; //bne
-	    3'b100: alu_func = `OP_SLT; //blt
-	    3'b101: alu_func = `OP_BGE; //bge
-	    3'b110: alu_func = `OP_SLTU; //bltu
-	    3'b111: alu_func = `OP_BGEU; //bgeu
-		default: alu_func = `OP_EEE;
+	    	3'b000:  alu_func = `OP_SUB; //beq
+	    	3'b001:  alu_func = `OP_ADD; //bne
+	    	3'b100:  alu_func = `OP_SLT; //blt
+	  	  3'b101:  alu_func = `OP_BGE; //bge
+		    3'b110:  alu_func = `OP_SLTU; //bltu
+	 			3'b111:  alu_func = `OP_BGEU; //bgeu
+				default: alu_func = `OP_EEE;
       endcase
     end
-    // select operation for R-types
-    2'b10: begin
+    2'b10: begin // R-types
       case (funct)
         4'b0_000: alu_func = `OP_ADD;
         4'b1_000: alu_func = `OP_SUB;
@@ -72,20 +66,19 @@ always @(*) begin
         default:  alu_func = `OP_EEE;
       endcase
     end
-	// Select operations for I-types
-    2'b11: begin
-	  casex (funct)
-		4'bx_000: alu_func = `OP_ADD;
-		4'bx_100: alu_func = `OP_XOR;
-		4'bx_110: alu_func = `OP_OR;
-		4'bx_111: alu_func = `OP_AND;
-		4'b0_001: alu_func = `OP_SLL;
-		4'b0_101: alu_func = `OP_SRL;
-		4'b1_101: alu_func = `OP_SRA;
-		4'bx_010: alu_func = `OP_SLT;
-		4'bx_011: alu_func = `OP_SLTU;
-		default: alu_func = `OP_EEE;
-	  endcase
+    2'b11: begin // I-types
+		  casex (funct)
+				4'bx_000: alu_func = `OP_ADD;
+				4'bx_100: alu_func = `OP_XOR;
+				4'bx_110: alu_func = `OP_OR;
+				4'bx_111: alu_func = `OP_AND;
+				4'b0_001: alu_func = `OP_SLL;
+				4'b0_101: alu_func = `OP_SRL;
+				4'b1_101: alu_func = `OP_SRA;
+				4'bx_010: alu_func = `OP_SLT;
+				4'bx_011: alu_func = `OP_SLTU;
+				default: 	alu_func = `OP_EEE;
+		  endcase
     end
     default: alu_func = `OP_EEE;
   endcase

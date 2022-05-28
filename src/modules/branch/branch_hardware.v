@@ -27,6 +27,41 @@ module branch_hardware #(
   output reg [DATA_WIDTH-1:0] branch_target  // branch target address for a hit
 );
 
-// TODO: Instantiate a branch predictor and a BTB.
+wire hit_wire, pred_wire;
+wire [DATA_WIDTH-1:0] branch_target_wire;
+
+branch_target_buffer m_branch_target_buffer (
+  .clk								(clk),
+  .rstn								(rstn),
+
+  .update							(update_btb),
+  .resolved_pc				(resolved_pc),
+  .resolved_pc_target	(resolved_pc_target),
+
+  .pc									(pc),
+
+  .hit								(hit_wire),
+  .target_address			(branch_target_wire)
+);
+
+gshare m_predictor (
+  .clk						(clk),
+  .rstn						(rstn),
+
+  .update					(update_predictor),
+  .actually_taken	(actually_taken),
+  .resolved_pc		(resolved_pc),
+
+  .pc							(pc),
+
+  .pred						(pred_wire)
+);
+
+always @(*) begin
+	hit = hit_wire;
+	pred = pred_wire;
+	branch_target = branch_target_wire;
+end
+
 
 endmodule
