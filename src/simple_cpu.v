@@ -48,6 +48,7 @@ wire ID_branch, ID_alu_src, ID_mem_read, ID_mem_to_reg, ID_mem_write, ID_reg_wri
 
 wire [DATA_WIDTH-1:0] EX_PC, EX_pc_plus_4, EX_imm, EX_readdata1, EX_readdata2, EX_target_base, EX_target, EX_alu_in_a, EX_alu_in_b, EX_alu_result, EX_alu_result_from_alu, EX_mem_writedata, EX_pc_plus_imm, EX_rs1_from_MEM, EX_rs2_from_MEM, EX_rs1_value, EX_rs2_value;
 
+
 wire [6:0] EX_opcode, EX_funct7;
 wire [4:0] EX_rs1, EX_rs2, EX_rd;
 wire [3:0] EX_alu_func;
@@ -55,7 +56,7 @@ wire [2:0] EX_funct3;
 wire [1:0] EX_jump, EX_alu_op, EX_utype, EX_fwd_a, EX_fwd_b; 
 wire EX_branch, EX_taken, EX_alu_src, EX_mem_read, EX_mem_write, EX_mem_to_reg, EX_reg_write, EX_check, EX_target_fetch;
 
-wire [DATA_WIDTH-1:0] 
+
 wire [DATA_WIDTH-1:0] MEM_PC, MEM_pc_plus_4, MEM_target, MEM_rs2_value, MEM_alu_result, MEM_mem_readdata, MEM_imm, MEM_pc_plus_imm;
 wire [4:0] MEM_rd;
 wire [2:0] MEM_funct3;
@@ -301,6 +302,7 @@ forwarding m_forwarding(
   .fwd_a					(EX_fwd_a), // 00 not forwarding, 01 from MEM, 10 from WB
   .fwd_b					(EX_fwd_b)
 );
+
 
 /* rs1_from_MEM selector */
 mux_4x1 mux_rs1_from_MEM (
