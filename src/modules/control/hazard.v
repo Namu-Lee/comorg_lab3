@@ -3,9 +3,12 @@
 // This module determines if pipeline stalls or flushing are required
 
 module hazard (
-  input taken, // branch misprediction penalty: flush
-	input branch,
-	input prediction,
+  input [31:0] target,	// resolved target at MEM stage (target if branch T)
+	input [31:0] pc_plus_4, // pc+4 of MEM (target if branch NT)
+	input [31:0] fetched,		// actually fetched PC (now in EX stage)
+	input taken, // MEM stage, branch taken?
+	input branch, // MEM stage, branch?
+	
 
   // RAW data hazard of Load: stall
   input [4:0] ID_rs1,
@@ -23,10 +26,20 @@ reg use_rs1, use_rs2, is_EX_load;
 
 always @(*) begin
   /* branch misprediction flush */
-  if ((prediction != taken) & branch) flush = 1;
-  else flush = 0;
+	if (branch) begin // if branch, check T/NT
+		if (taken) begin // taken
+			if (fetched != target) flush = 1;
+			else flush = 0;
+		end
+		else begin // not taken
+			if (fetched != pc_plus_4) flush = 1;
+			else flush = 0;
+		end
+	end
+	else flush = 0;// if not branch, don not flush
+  
 
-  /* Data hazard stall: Stall if EX_rs1 or EX_rs2 is forwarded from MEM & MEM_Load operation */
+	/* Data hazard stall: Stall if EX_rs1 or EX_rs2 is forwarded from MEM & MEM_Load operation */
   // check if ID_inst uses rs1 or rs2 and it isnt' x0
   case (ID_opcode)
     7'b011_0011: {use_rs1, use_rs2} = {ID_rs1 != 0, ID_rs2 != 0}; // R-type

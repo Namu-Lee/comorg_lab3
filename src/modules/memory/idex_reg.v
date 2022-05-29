@@ -40,7 +40,6 @@ module idex_reg #(
   input [4:0] id_rd,
   input [6:0] id_opcode,
 
-	input id_target_fetch,	
   input flush,
   input stall,
 
@@ -75,9 +74,7 @@ module idex_reg #(
   output reg [4:0] ex_rs1,
   output reg [4:0] ex_rs2,
   output reg [4:0] ex_rd,
-  output reg [6:0] ex_opcode,
-
-	output reg ex_target_fetch
+  output reg [6:0] ex_opcode
 );
 
 always @(posedge clk) begin 
@@ -102,16 +99,15 @@ always @(posedge clk) begin
 		ex_rs2					<= id_rs2;
 		ex_rd						<= id_rd;
 		ex_opcode				<= id_opcode;
-		ex_target_fetch	<= id_target_fetch;
   end
   else begin // flush(or stall) operation: insert NOP to EX
     ex_branch				<= 0;
+		ex_jump					<= 0;
     ex_memread			<= 0;
     ex_memwrite			<= 0;
     ex_memtoreg			<= 0;
     ex_regwrite			<= 0;
     ex_opcode				<= 7'b001_0011;
-		ex_target_fetch	<= 0;
 		ex_utype				<= 0;
   end 
   

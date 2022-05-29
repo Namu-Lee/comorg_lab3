@@ -16,18 +16,6 @@ module simple_cpu
   input rstn
 );
 
-//////////////////////////////////////////////////////////////////////////////////
-// Hardware Counters
-//////////////////////////////////////////////////////////////////////////////////
-
-wire [31:0] CORE_CYCLE;
-hardware_counter m_core_cycle(
-  .clk(clk),
-  .rstn(rstn),
-  .cond(1'b1),
-
-  .counter(CORE_CYCLE)
-);
 
 //////////////////////////////////////////////////////////////////////////////////
 // reg & wires
@@ -37,7 +25,7 @@ reg [DATA_WIDTH-1:0] PC;    // program counter (32 bits)
 wire [DATA_WIDTH-1:0] NEXT_PC;
 
 
-wire [DATA_WIDTH-1:0] IF_pc_plus_4, IF_inst, IF_pred_target;
+wire [DATA_WIDTH-1:0] IF_pc_plus_4, IF_inst, IF_pred_target, IF_flush_target;
 wire IF_hit, IF_pred_tmp, IF_update_predictor;
 
 
@@ -72,6 +60,52 @@ wire WB_mem_to_reg, WB_reg_write;
 
 wire stall;
 wire flush;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Hardware Counters
+///////////////////////////////////////////////////////////////////////////////
+
+wire [31:0] CORE_CYCLE, NUM_COND_BRANCHES, NUM_UNCOND_BRANCHES, BP_CORRECT;
+
+/* core cycle counter */
+hardware_counter m_core_cycle(
+  .clk			(clk),
+  .rstn			(rstn),
+  .cond			(1'b1),
+
+  .counter	(CORE_CYCLE)
+);
+
+
+/* condtional branch counter */
+hardware_counter m_num_cond_branches (
+	.clk			(clk),
+	.rstn			(rstn),
+	.cond			((~MEM_jump[1]) & MEM_branch),
+
+	.counter	(NUM_COND_BRANCHES)
+);
+
+
+/* unconditional branch counter */
+hardware_counter m_num_uncond_branches (
+  .clk      (clk),
+  .rstn     (rstn),
+  .cond     (MEM_jump[1]),
+
+  .counter  (NUM_UNCOND_BRANCHES)
+);
+
+
+/* prediction correct counter */
+hardware_counter m_branch_prediction_correct (
+  .clk      (clk),
+  .rstn     (rstn),
+  .cond     ((~MEM_jump[1]) & MEM_branch & (~flush)),
+
+  .counter  (BP_CORRECT)
+);
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -110,7 +144,7 @@ branch_hardware m_branch_hardware (
 	.clk								(clk),
 	.rstn								(rstn),
 	
-	.update_predictor		(MEM_update_predictor),
+	.update_predictor		(IF_update_predictor),
 	.update_btb					(MEM_taken),
 	.actually_taken			(MEM_taken),
 	.resolved_pc				(MEM_PC),
@@ -137,24 +171,35 @@ always @(*) begin
 	IF_target_fetch = IF_pred & IF_hit;
 
 	casex ({flush, stall, IF_target_fetch})
-		3'b1xx:  IF_next_pc_src = 2'b01; // flush
+		3'b1xx:  IF_next_pc_src = 2'b10; // flush
 		3'b01x:  IF_next_pc_src = 2'b11; // stall
-		3'b001:  IF_next_pc_src = 2'b10; // predicted target
+		3'b001:  IF_next_pc_src = 2'b01; // predicted target
 		default: IF_next_pc_src = 2'b00; // general case, pred NT
 	endcase
 end
+
+
+/* flush target selector */
+mux_2x1 mux_flush_select (
+	.select	(MEM_taken),
+	.in1		(MEM_pc_plus_4),
+	.in2		(MEM_target),
+	
+	.out		(IF_flush_target)
+);
 
 
 /* next pc source selector */
 mux_4x1 mux_next_pc_select (
   .select	(IF_next_pc_src),
 	.in1		(IF_pc_plus_4), // general case, or pred NT
-  .in2		(MEM_target), // branch misprediction: flush
-  .in3		(IF_pred_target), // pred T
+  .in2		(IF_pred_target), // pred T
+	.in3		(IF_flush_target), // branch misprediction: flush
   .in4		(PC), // data hazard: stall
 
   .out		(NEXT_PC)
 );
+
 
 /* forward to IF/ID stage registers */
 ifid_reg m_ifid_reg(
@@ -162,14 +207,12 @@ ifid_reg m_ifid_reg(
   .if_PC          	(PC),
   .if_pc_plus_4   	(IF_pc_plus_4),
   .if_instruction 	(IF_inst),
-	.if_target_fetch	(IF_target_fetch),
   .flush 						(flush),
   .stall 						(stall),
 
   .id_PC          	(ID_PC),
   .id_pc_plus_4   	(ID_pc_plus_4),
-  .id_instruction 	(ID_inst),
-	.id_target_fetch	(ID_target_fetch)
+  .id_instruction 	(ID_inst)
 );
 
 
@@ -181,8 +224,10 @@ ifid_reg m_ifid_reg(
 /* m_hazard: hazard detection unit */
 hazard m_hazard(
   .taken				(MEM_taken),
-  .branch 			(MEM_branch),
-	.prediction		(MEM_target_fetch),
+	.branch 			(MEM_branch),
+	.target				(MEM_target),
+	.pc_plus_4		(MEM_pc_plus_4),
+	.fetched			(EX_PC),
 	.ID_rs1 			(ID_inst[19:15]),
   .ID_rs2 			(ID_inst[24:20]),
   .ID_opcode 		(ID_inst[6:0]),
@@ -255,7 +300,6 @@ idex_reg m_idex_reg(
   .id_rs2       		(ID_inst[24:20]),
   .id_rd        		(ID_inst[11:7]),
   .id_opcode    		(ID_inst[6:0]),
-	.id_target_fetch	(ID_target_fetch),
   .flush						(flush),
   .stall 						(stall),
 
@@ -278,8 +322,7 @@ idex_reg m_idex_reg(
   .ex_rs1						(EX_rs1),
   .ex_rs2						(EX_rs2),
   .ex_rd						(EX_rd),
-  .ex_opcode    		(EX_opcode),
-	.ex_target_fetch	(EX_target_fetch)
+  .ex_opcode    		(EX_opcode)
 );
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -306,7 +349,7 @@ forwarding m_forwarding(
 
 /* rs1_from_MEM selector */
 mux_4x1 mux_rs1_from_MEM (
-	.select	({1'b0, EX_jump[1]} | EX_utype),
+	.select	({1'b0, MEM_jump[1]} | MEM_utype),
 	.in1		(MEM_alu_result), 	// general case
 	.in2		(MEM_pc_plus_4),		// jump (pc+4)
 	.in3		(MEM_imm),					// lui (imm)
@@ -318,7 +361,7 @@ mux_4x1 mux_rs1_from_MEM (
 
 /* rs2_from_MEM selector */
 mux_4x1 mux_rs2_from_MEM (
-  .select ({1'b0, EX_jump[1]} | EX_utype),
+  .select ({1'b0, MEM_jump[1]} | MEM_utype),
   .in1    (MEM_alu_result),   // general case
   .in2    (MEM_pc_plus_4),    // jump (pc+4)
   .in3    (MEM_imm),          // lui (imm)
@@ -398,40 +441,11 @@ alu m_alu(
 );
 
 
-/*
-mux_3x1 mux_alu_in_1(
-  .select(EX_fwd_a),
-  .in1(EX_readdata1), //00, RF
-  .in2(MEM_alu_result), //01, fwd from MEM
-  .in3(WB_writedata), //10, fwd from WB
-
-  .out(EX_alu_in_a)
-);
-mux_4x1 mux_alu_in_2(
-  .select({2{EX_alu_src}} | EX_fwd_b),
-  .in1(EX_readdata2), // RF
-  .in2(MEM_alu_result), // fwd from MEM
-  .in3(WB_writedata), // fwd from WB
-  .in4(EX_imm), // immediate
-
-  .out(EX_alu_in_b)
-);
-mux_3x1 mem_writedata_select (
-  .select (EX_fwd_b),
-  .in1 (EX_readdata2),
-  .in2 (MEM_alu_result),
-  .in3 (WB_writedata),
-
-  .out (EX_mem_writedata)
-);
-*/
-
-
 //////////////////////////////////////////////////////////////////////////////////
 // Control flow opeartion
 //////////////////////////////////////////////////////////////////////////////////
 
-/* branch target adder in_a selector */
+/* branch target base selector */
 mux_2x1 mux_target_base (
   .select	(EX_jump[0]),
   .in1		(EX_PC),											// pc
@@ -458,6 +472,7 @@ branch_control m_branch_control(
   .taken  (EX_taken)
 );
 
+
 ///////////////////////////////////////////////////////////////////////////////////
 
 /* forward to EX/MEM stage registers */
@@ -477,7 +492,6 @@ exmem_reg m_exmem_reg(
   .ex_writedata   	(EX_rs2_value),
   .ex_funct3      	(EX_funct3),
   .ex_rd          	(EX_rd),
-	.ex_target_fetch	(EX_target_fetch),
 	.ex_imm						(EX_imm),
 	.ex_pc_plus_imm		(EX_pc_plus_imm),
 	.ex_utype					(EX_utype),
@@ -497,7 +511,6 @@ exmem_reg m_exmem_reg(
   .mem_writedata  	(MEM_rs2_value),
   .mem_funct3     	(MEM_funct3),
   .mem_rd        		(MEM_rd),
-	.mem_target_fetch	(MEM_target_fetch),
 	.mem_imm					(MEM_imm),
 	.mem_pc_plus_imm	(MEM_pc_plus_imm),
 	.mem_utype				(MEM_utype)
@@ -535,16 +548,16 @@ memwb_reg m_memwb_reg(
 	.mem_pc_plus_imm	(MEM_pc_plus_imm),
 	.mem_utype				(MEM_utype),
 
-  .wb_pc_plus_4   (WB_pc_plus_4),
-  .wb_jump        (WB_jump),
-  .wb_memtoreg    (WB_mem_to_reg),
-  .wb_regwrite    (WB_reg_write),
-  .wb_readdata    (WB_mem_readdata),
-  .wb_alu_result  (WB_alu_result),
-  .wb_rd          (WB_rd),
-	.wb_imm					(WB_imm),
-	.wb_pc_plus_imm	(WB_pc_plus_imm),
-	.wb_utype				(WB_utype)
+  .wb_pc_plus_4   	(WB_pc_plus_4),
+  .wb_jump        	(WB_jump),
+  .wb_memtoreg    	(WB_mem_to_reg),
+  .wb_regwrite    	(WB_reg_write),
+  .wb_readdata    	(WB_mem_readdata),
+  .wb_alu_result  	(WB_alu_result),
+  .wb_rd          	(WB_rd),
+	.wb_imm						(WB_imm),
+	.wb_pc_plus_imm		(WB_pc_plus_imm),
+	.wb_utype					(WB_utype)
 );
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -552,7 +565,7 @@ memwb_reg m_memwb_reg(
 //////////////////////////////////////////////////////////////////////////////////
 
 /* u-type writeback data selector */
-mux_2x1 mux_writeback_utype (
+mux_2x1 mux_writeback_for_utype (
   .select	(WB_utype[0]),
   .in1		(WB_imm),					// lui (imm)
   .in2		(WB_pc_plus_imm),	// auipc (pc+imm)
@@ -562,7 +575,7 @@ mux_2x1 mux_writeback_utype (
 
 
 /* writeback selector */
-mux_4x1 mux_writeback_jump (
+mux_4x1 mux_writeback (
 	.select	({(WB_utype[1] | WB_jump[1]), (WB_utype[1] | WB_mem_to_reg)}),
 	.in1		(WB_alu_result),
 	.in2		(WB_mem_readdata),

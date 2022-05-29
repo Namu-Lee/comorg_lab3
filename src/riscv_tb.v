@@ -27,13 +27,20 @@ end
 
 
 integer i;
+/*integer pc;
+
+always @(my_cpu.PC) begin
+	pc = my_cpu.PC/4;
+end
+*/
 
 initial begin
   clk  = 1'b0;
   rstn = 1'b0;
+
   $display($time, " ** Start Simulation **");
   $display($time, " Instruction Memory ");
-  $monitor($time, " [PC] pc : %d", my_cpu.PC);
+  $monitor($time, " [PC] pc : %d", /*pc*/my_cpu.PC);
   #60 rstn = 1'b1;
   //#4000; 
   wait (my_cpu.PC == LAST_PC);  
@@ -51,13 +58,13 @@ initial begin
   
   $display($time, " HARDWARE COUNTERS");
   $display($time, " CORE_CYCLE: %d", my_cpu.CORE_CYCLE);
-  /*
+  
   $display($time, " NUM_COND_BRANCHES: %d", my_cpu.NUM_COND_BRANCHES);
   $display($time, " NUM_UNCOND_BRANCHES: %d", my_cpu.NUM_UNCOND_BRANCHES);
 
   $display($time, " BP_CORRECT: %d", my_cpu.BP_CORRECT);
   $display($time, " BP_INCORRECT: %d", my_cpu.NUM_COND_BRANCHES - my_cpu.BP_CORRECT);
-  */
+  
 
   $finish;
 end

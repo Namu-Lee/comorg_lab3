@@ -35,7 +35,6 @@ module exmem_reg #(
   input [2:0] ex_funct3,
   input [4:0] ex_rd,
   
-	input ex_target_fetch,
 	input flush,
   
   //////////////////////////////////////
@@ -63,9 +62,7 @@ module exmem_reg #(
   output reg [DATA_WIDTH-1:0] mem_alu_result,
   output reg [DATA_WIDTH-1:0] mem_writedata,
   output reg [2:0] mem_funct3,
-  output reg [4:0] mem_rd,
-
-	output reg mem_target_fetch
+  output reg [4:0] mem_rd
 );
 
 always @(posedge clk) begin
@@ -84,7 +81,6 @@ always @(posedge clk) begin
 		mem_writedata			<= ex_writedata;
 		mem_funct3				<= ex_funct3;
 		mem_rd						<= ex_rd;
-		mem_target_fetch	<= ex_target_fetch;
 		mem_imm						<= ex_imm;
 		mem_pc_plus_imm		<= ex_pc_plus_imm;
 		mem_utype					<= ex_utype;
@@ -97,7 +93,6 @@ always @(posedge clk) begin
 		mem_memtoreg			<= 0;
     mem_regwrite			<= 0;
 		mem_jump					<= 0;
-		mem_target_fetch	<= 0;
 		mem_utype					<= 0;
   end
 end

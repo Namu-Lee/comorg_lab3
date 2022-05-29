@@ -56,7 +56,7 @@ end
 
 always @(*) begin
 	// access
-	hit = tag_matched & valid;
+	hit = tag_matched & valid[current_index];
 	target_address = target_buffer[current_index];
 end
 
